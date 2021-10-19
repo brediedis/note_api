@@ -25,6 +25,13 @@ class NoteController extends AbstractController
     public function add(Request $request): JsonResponse
     {
         $data = json_decode($request->getContent(), true);
+
+        if (!array_key_exists('title', $data) || empty($data['title'])) {
+            return new JsonResponse([
+                'status' => 'error',
+                'error_message' => "The title field isnt set or is empty!"
+            ], JsonResponse::HTTP_BAD_REQUEST);
+        }
         $form = $this->createForm(NoteType::class, new Note());
         $form->submit($data);
         if ($form->isValid() === false) {
@@ -33,7 +40,7 @@ class NoteController extends AbstractController
 
         $this->entityManager->persist($form->getData());
         $this->entityManager->flush();
-        return new JsonResponse($data);
+        return new JsonResponse(['status' => 'Note created!'], Response::HTTP_CREATED);
     }
 
     #[Route('/notes/{id}', name: 'get_one_note', methods: 'GET')]
@@ -81,15 +88,31 @@ class NoteController extends AbstractController
         }
 
         $data = json_decode($request->getContent(), true);
-//        if (!empty($data['title'])) {
-//            $note->setTitle($data['title']);
-//        }
-//        if (!empty($data['text'])) {
-//            $note->setText($data['text']);
-//        }
-//
-//        $entityManager->flush();
-        return new JsonResponse(['updated note', 'data' => $data], Response::HTTP_OK);
+
+        if (!empty($data)) {
+            // the title cannot be empty
+            if (array_key_exists('title', $data) && !empty($data['title'])) {
+                $note->setTitle($data['title']);
+            } else {
+                return new JsonResponse([
+                    'status' => 'error',
+                    'error_message' => "The title field isnt set or is empty!"
+                ], JsonResponse::HTTP_BAD_REQUEST);
+            }
+            // the text can be empty
+            if (array_key_exists('text', $data)) {
+                $note->setText($data['text']);
+            }
+
+            $this->entityManager->flush();
+            return new JsonResponse(['updated note', 'data' => $data], Response::HTTP_OK);
+        } else {
+            return new JsonResponse([
+                'status' => 'error',
+                'error_message' => "No data was provided!"
+            ], JsonResponse::HTTP_BAD_REQUEST);
+        }
+
     }
 
     #[Route('/notes/{id}', name: 'delete_note', methods: 'DELETE')]
