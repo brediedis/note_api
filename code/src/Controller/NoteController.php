@@ -10,15 +10,19 @@ use Symfony\Component\HttpFoundation\Request;
 use App\Entity\Note;
 use Doctrine\ORM\EntityManagerInterface;
 use App\Form\NoteType;
+use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 class NoteController extends AbstractController
 {
 
     private $entityManager;
+    private $client;
 
-    public function __construct(EntityManagerInterface $entityManager)
+    public function __construct(EntityManagerInterface $entityManager, HttpClientInterface $client)
     {
         $this->entityManager = $entityManager;
+        $this->client = $client;
+
     }
 
     #[Route('/notes', name: 'add_note', methods: 'POST')]
@@ -26,21 +30,26 @@ class NoteController extends AbstractController
     {
         $data = json_decode($request->getContent(), true);
 
-        if (!array_key_exists('title', $data) || empty($data['title'])) {
-            return new JsonResponse([
-                'status' => 'error',
-                'error_message' => "The title field isnt set or is empty!"
-            ], JsonResponse::HTTP_BAD_REQUEST);
-        }
-        $form = $this->createForm(NoteType::class, new Note());
-        $form->submit($data);
-        if ($form->isValid() === false) {
+        if (!empty($data)) {
+            if (!array_key_exists('title', $data) || empty($data['title'])) {
+                return new JsonResponse([
+                    'status' => 'error',
+                    'error_message' => "The title field isnt set or is empty!"
+                ], JsonResponse::HTTP_BAD_REQUEST);
+            }
+            $form = $this->createForm(NoteType::class, new Note());
+            $form->submit($data);
+            if ($form->isValid() === false) {
+                return new JsonResponse(['status' => 'error'], JsonResponse::HTTP_BAD_REQUEST);
+            }
+
+            $this->entityManager->persist($form->getData());
+            $this->entityManager->flush();
+            return new JsonResponse(['status' => 'Note created!'], JsonResponse::HTTP_CREATED);
+        } else {
             return new JsonResponse(['status' => 'error'], JsonResponse::HTTP_BAD_REQUEST);
         }
 
-        $this->entityManager->persist($form->getData());
-        $this->entityManager->flush();
-        return new JsonResponse(['status' => 'Note created!'], Response::HTTP_CREATED);
     }
 
     #[Route('/notes/{id}', name: 'get_one_note', methods: 'GET')]
@@ -57,7 +66,7 @@ class NoteController extends AbstractController
             'text' => $note->getText()
         ];
 
-        return new JsonResponse(['note' => $note_data], Response::HTTP_OK);
+        return new JsonResponse(['note' => $note_data], JsonResponse::HTTP_OK);
     }
 
     #[Route('/notes', name: 'get_all_notes', methods: 'GET')]
@@ -72,9 +81,9 @@ class NoteController extends AbstractController
                 $tmp['text'] = $note->getText();
                 $note_data[] = $tmp;
             }
-            return new JsonResponse(['all notes' => $note_data], Response::HTTP_OK);
+            return new JsonResponse(['all notes' => $note_data], JsonResponse::HTTP_OK);
         } else {
-            return new JsonResponse(['No notes available'], Response::HTTP_NOT_FOUND);
+            return new JsonResponse(['No notes available'], JsonResponse::HTTP_NOT_FOUND);
         }
     }
 
@@ -105,7 +114,7 @@ class NoteController extends AbstractController
             }
 
             $this->entityManager->flush();
-            return new JsonResponse(['updated note', 'data' => $data], Response::HTTP_OK);
+            return new JsonResponse(['updated note', 'data' => $data], JsonResponse::HTTP_OK);
         } else {
             return new JsonResponse([
                 'status' => 'error',
@@ -124,6 +133,6 @@ class NoteController extends AbstractController
         }
         $this->entityManager->remove($note);
         $this->entityManager->flush();
-        return new JsonResponse(['status' => 'Note deleted'], Response::HTTP_NO_CONTENT);
+        return new JsonResponse(['status' => 'Note deleted'], JsonResponse::HTTP_NO_CONTENT);
     }
 }
